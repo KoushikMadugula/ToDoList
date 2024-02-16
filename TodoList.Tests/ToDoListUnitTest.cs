@@ -1,57 +1,101 @@
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System;
+using System.Linq;
 using ToDoListClassLibrary;
-using ToDoListWebAPI.Controllers;
 
 namespace ToDoListUnitTests
 {
     [TestClass]
-    public class ToDoListUnitTest
+    public class ToDoItemTests
     {
-        ToDoItem? toDoItem;
+        private static ToDoContext _context;
 
-        [TestInitialize]
-        public void TestInitialize()
+        [ClassInitialize]
+        public static void ClassInitialize(TestContext context)
         {
-            toDoItem =new ToDoListClassLibrary.ToDoItem();
+            var options = new DbContextOptionsBuilder<ToDoContext>()
+                .UseSqlite("Data Source=/workspaces/ToDoList/TodoList.API/todolist.db;")
+                .Options;
+
+            _context = new ToDoContext(options);
+            _context.Database.EnsureCreated();
         }
 
 
         [TestMethod]
-        public void ToDoItem_Initialization_Success()
-        {
+    public void Constructor_SetsDueDateOneWeekAhead_IfNull_And_SaveToDatabase()
+    {
+    
+    var item = new ToDoItem();
 
-            Assert.IsNotNull(toDoItem);
+    
+    _context.ToDoItems.Add(item); 
+    _context.SaveChanges(); 
+
+    
+    var expectedDate = DateTime.Now.AddDays(7).Date;
+    Assert.AreEqual(expectedDate, item.DueDate?.Date, "DueDate is not set to one week ahead.");
+
+    
+    var itemFromDb = _context.ToDoItems.FirstOrDefault(i => i.Id == item.Id);
+    Assert.IsNotNull(itemFromDb, "Item was not saved to the database.");
+    Assert.AreEqual(expectedDate, itemFromDb.DueDate?.Date, "Saved item's DueDate does not match the expected value.");
+}
+
+        [TestMethod]
+        public void Save_ToDoItemToDatabase()
+        {
+            var newItem = new ToDoItem { Description = "Checking two" };
+            _context.Add(newItem);
+            _context.SaveChanges();
+
+            var itemFromDb = _context.ToDoItems.FirstOrDefault(item => item.Description == "Checking two");
+            Assert.IsNotNull(itemFromDb);
+            Assert.AreEqual("Checking two", itemFromDb.Description);
         }
 
         [TestMethod]
-        public void ToDoItem_SetDueDate_Success()
+        public void Update_ToDoItemCompletedDate()
         {
-            var dueDate = DateTime.Now.AddDays(7);
+            var newItem = new ToDoItem { Description = "Checking three" };
+            _context.Add(newItem);
+            _context.SaveChanges();
 
-            toDoItem.DueDate = dueDate;
+            var itemFromDb = _context.ToDoItems.FirstOrDefault(item => item.Description == "Checking three");
+            Assert.IsNotNull(itemFromDb);
 
-            Assert.AreEqual(dueDate, toDoItem.DueDate);
+            itemFromDb.CompletedDate = DateTime.Now;
+            _context.SaveChanges();
+
+            var updatedItem = _context.ToDoItems.FirstOrDefault(item => item.Description == "Checking three");
+            Assert.IsNotNull(updatedItem.CompletedDate);
         }
 
         [TestMethod]
-        public void ToDoItem_SetCompletedDate_Success()
-        {
-            var completedDate = DateTime.Now;
+    public void SetAndGet_ToDoItemDescription_Success()
+    {
+    
+    var expectedDescription = "Checking four";
+    var toDoItem = new ToDoItem { Description = expectedDescription };
 
-            toDoItem.CompletedDate = completedDate;
+    
+    _context.Add(toDoItem);
+    _context.SaveChanges();
 
-            Assert.AreEqual(completedDate, toDoItem.CompletedDate);
-        }
+    
+    var savedItem = _context.ToDoItems.FirstOrDefault(item => item.Description == expectedDescription);
+    Assert.IsNotNull(savedItem, "Failed to retrieve the ToDoItem from the database.");
+    Assert.AreEqual(expectedDescription, savedItem.Description, "The Description of the retrieved ToDoItem does not match the expected value.");
+    }
 
-        [TestMethod]
-        public void ToDoItem_SetDescription_Success()
-        {
-            var description = "Sample description";
+       
+    }
 
-            toDoItem.Description = description;
+    public class ToDoContext : DbContext
+    {
+        public DbSet<ToDoItem> ToDoItems { get; set; }
 
-            Assert.AreEqual(description, toDoItem.Description);
-        }
+        public ToDoContext(DbContextOptions<ToDoContext> options) : base(options) { }
     }
 }
